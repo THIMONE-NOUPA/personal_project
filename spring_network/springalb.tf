@@ -128,11 +128,11 @@ resource "aws_lb_target_group" "jenkins_target_group" {
 resource "aws_lb_target_group" "sonar_target_group" {
   name        = "sonar-target-group"
   port        = 9000
-  protocol    = "HTTP"
+  protocol    = "HTTPS"
   vpc_id      = aws_vpc.spring_vpc.id
     health_check {
         port               = "9000"
-        protocol           = "HTTP"
+        protocol           = "HTTPS"
         path               = "/api/system/health"
         interval           = 30
         timeout            = 6

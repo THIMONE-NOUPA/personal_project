@@ -1,106 +1,110 @@
-# # # main.tf
 
-# # Fournisseur AWS
-# provider "aws" {
-#   region = var.region
-# }
+# # main.tf
 
-# # Création du rôle IAM pour EKS
-# resource "aws_iam_role" "thim_cluster_role" {
-#   name = "thim-cluster-role"
+# Fournisseur AWS
+provider "aws" {
+  region = var.region
+}
 
-#   assume_role_policy = jsonencode({
-#     Version = "2012-10-17",
-#     Statement = [
-#       {
-#         Action = "sts:AssumeRole",
-#         Principal = {
-#           Service = "eks.amazonaws.com"
-#         },
-#         Effect = "Allow"
-#       },
-#     ]
-#   })
-# }
+# Rôle IAM pour le cluster EKS
+resource "aws_iam_role" "thim_cluster_role" {
+  name = "thim-cluster-role"
 
-# # Attachement des politiques gérées pour le rôle EKS
-# resource "aws_iam_role_policy_attachment" "thim_cluster_policy" {
-#   role       = aws_iam_role.thim_cluster_role.name
-#   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-# }
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Action = "sts:AssumeRole",
+        Principal = {
+          Service = "eks.amazonaws.com"
+        },
+        Effect = "Allow"
+      },
+    ]
+  })
+}
 
-# resource "aws_iam_role_policy_attachment" "thim_service_policy" {
-#   role       = aws_iam_role.thim_cluster_role.name
-#   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController"
-# }
+# Attachement des politiques gérées pour le rôle EKS
+resource "aws_iam_role_policy_attachment" "thim_cluster_policy" {
+  role       = aws_iam_role.thim_cluster_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+}
 
-# # Cluster EKS
-# resource "aws_eks_cluster" "eks" {
-#   name     = var.cluster_name
-#   role_arn = aws_iam_role.eks_cluster_role.arn
+resource "aws_iam_role_policy_attachment" "thim_service_policy" {
+  role       = aws_iam_role.thim_cluster_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController"
+}
 
-#   vpc_config {
-#     subnet_ids =  module.spring_network.public_subnet2
-#   }
+# Cluster EKS
+resource "aws_eks_cluster" "eks" {
+  name     = var.cluster_name
+  role_arn = aws_iam_role.thim_cluster_role.arn
 
-#   depends_on = [
-#     aws_iam_role_policy_attachment.eks_cluster_policy,
-#     aws_iam_role_policy_attachment.eks_service_policy
-#   ]
-# }
+  vpc_config {
+    subnet_ids = [
+      data.aws_subnet.spring_public_subnet.id,
+      data.aws_subnet.spring_public_subnet_2.id # Ajouter un second sous-réseau public dans une autre AZ
+    ]
+  }
 
-# # Role IAM pour les groupes de nœuds
-# resource "aws_iam_role" "thim_node_role" {
-#   name = "thim-node-role"
+  depends_on = [
+    aws_iam_role_policy_attachment.thim_cluster_policy,
+    aws_iam_role_policy_attachment.thim_service_policy
+  ]
+}
 
-#   assume_role_policy = jsonencode({
-#     Version = "2012-10-17",
-#     Statement = [
-#       {
-#         Action = "sts:AssumeRole",
-#         Principal = {
-#           Service = "ec2.amazonaws.com"
-#         },
-#         Effect = "Allow"
-#       },
-#     ]
-#   })
-# }
+# Rôle IAM pour les groupes de nœuds
+resource "aws_iam_role" "thim_node_role" {
+  name = "thim-node-role"
 
-# # Attachement des politiques gérées pour le rôle des nœuds
-# resource "aws_iam_role_policy_attachment" "thim_worker_node_policy" {
-#   role       = aws_iam_role.thim_node_role.name
-#   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-# }
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Action = "sts:AssumeRole",
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        },
+        Effect = "Allow"
+      },
+    ]
+  })
+}
 
-# resource "aws_iam_role_policy_attachment" "thim_cni_policy" {
-#   role       = aws_iam_role.thim_node_role.name
-#   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-# }
+# Attachement des politiques gérées pour le rôle des nœuds
+resource "aws_iam_role_policy_attachment" "thim_worker_node_policy" {
+  role       = aws_iam_role.thim_node_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+}
 
-# resource "aws_iam_role_policy_attachment" "ec2_container_registry_read_only" {
-#   role       = aws_iam_role.thim_node_role.name
-#   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-# }
+resource "aws_iam_role_policy_attachment" "thim_cni_policy" {
+  role       = aws_iam_role.thim_node_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+}
 
-# # Groupe de nœuds géré par EKS
-# resource "aws_eks_node_group" "eks_nodes" {
-#   cluster_name    = aws_eks_cluster.eks.name
-#   node_group_name = var.node_group_name
-#   node_role_arn   = aws_iam_role.thim_node_role.arn
-#   subnet_ids      = module.spring_network.private_subnet2
+resource "aws_iam_role_policy_attachment" "ec2_container_registry_read_only" {
+  role       = aws_iam_role.thim_node_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+}
 
-#   scaling_config {
-#     desired_size = var.desired_nodes
-#     max_size     = var.max_nodes
-#     min_size     = var.min_nodes
-#   }
+# Groupe de nœuds géré par EKS
+resource "aws_eks_node_group" "eks_nodes" {
+  cluster_name    = aws_eks_cluster.eks.name
+  node_group_name = var.node_group_name
+  node_role_arn   = aws_iam_role.thim_node_role.arn
+  subnet_ids      = [data.aws_subnet.spring_private_subnet_2.id] # Node group dans le private subnet
 
-#   instance_types = [var.instance_type]
+  scaling_config {
+    desired_size = var.desired_nodes
+    max_size     = var.max_nodes
+    min_size     = var.min_nodes
+  }
 
-#   depends_on = [
-#     aws_iam_role_policy_attachment.thim_worker_node_policy,
-#     aws_iam_role_policy_attachment.thim_cni_policy,
-#     aws_iam_role_policy_attachment.ec2_container_registry_read_only
-#   ]
-# }
+  instance_types = [var.instance_type]
+
+  depends_on = [
+    aws_iam_role_policy_attachment.thim_worker_node_policy,
+    aws_iam_role_policy_attachment.thim_cni_policy,
+    aws_iam_role_policy_attachment.ec2_container_registry_read_only
+  ]
+}
